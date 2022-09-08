@@ -1,39 +1,36 @@
-from flask import Flask
-import sqlite3
-
-app = Flask(__name__)
-
-
-def connect_to_db():
-    conn = sqlite3.connect("database.db")
-    return conn
+from flask import (
+    Flask,  # for creating a flask app
+    request,  # for receiving data
+    jsonify,  # for sending data as json
+)
+import sqlite3  # for the database
 
 
-def create_db_table():
-    try:
-        conn = connect_to_db()
-        conn.row_factory = sqlite3.Row
-        cur = conn.cursor()
-        cur.execute("SELECT * FROM games")
-        rows = cur.fetchall()
-        print(rows)
-        if rows is None:
-            conn.execute(
-                """
+# db setup
+db = sqlite3.connect("database.db")
+cursor = db.cursor()
+cursor.execute(
+    """
         CREATE TABLE games(
         ID INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
         company TEXT NOT NULL
         );
       """
-            )
-            conn.commit()
-            print("Table created successfully")
-            # Create table
-    except:
-        print("Table creation failed")
-    finally:
-        conn.close()
+)
+db.commit()
+# /db setup
+
+app = Flask(__name__)
+
+
+def sql(cmd, vals=None):
+    conn = sqlite3.connect("database.db")
+    cur = conn.cursor()
+    res = cur.execute(cmd, vals).fetchall()
+    conn.commit()
+    conn.close()
+    return res
 
 
 @app.route("/")
@@ -41,9 +38,26 @@ def index():
     return "Hello, from Flask!"
 
 
-@app.route("/all")
-def get_all():
-    return "Get all data from database"
+@app.route("/all", methods=["GET"])
+def all():
+    try:
+        response = sql("SELECT * FROM games")
+        response = jsonify(response)
+        if response is None:
+            return "NOthing in DB"
+        return response
+    except:
+        print("Connection to DB failed")
+        return "Connection to DB failed"
+
+
+@app.route("/place", methods=["POST"])
+def place():
+    response = sql(
+        "INSERT INTO games (name, company) VALUES (?, ?)",
+        (request.form["name"], request.form["company"]),
+    )
+    return response
 
 
 app.run(host="0.0.0.0", port=81)
